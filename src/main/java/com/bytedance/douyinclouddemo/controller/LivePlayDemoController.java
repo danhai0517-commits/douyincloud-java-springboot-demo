@@ -98,6 +98,78 @@ public class LivePlayDemoController {
         return response;
     }
 
+    /**
+     * exe 客户端启动：直播伴侣以启动参数传来 token，客户端交给这里换取直播间信息并开启推送。
+     * 走抖音云内网专线，无需自己维护 access_token。请求体 {"token":"...","appid":"ttxxxx"}，
+     * appid 优先取环境变量 LIVEPLAY_APPID。
+     */
+    @PostMapping(path = "/start_by_token", produces = "application/json;charset=UTF-8")
+    public String startByToken(@RequestBody String reqBody) {
+        JSONObject out = new JSONObject();
+        JSONObject req;
+        try {
+            req = JSON.parseObject(reqBody);
+        } catch (Exception e) {
+            req = null;
+        }
+        String token = req == null ? null : req.getString("token");
+        String appID = notEmpty(System.getenv("LIVEPLAY_APPID")) ? System.getenv("LIVEPLAY_APPID")
+                : (req == null ? null : req.getString("appid"));
+        if (!notEmpty(token) || !notEmpty(appID)) {
+            out.put("err_no", 1);
+            out.put("err_msg", "缺少 token 或 appid");
+            return out.toJSONString();
+        }
+
+        String raw;
+        try {
+            Request request = new Request.Builder()
+                    .url(OPENAPI_BASE + "/api/webcastmate/info")
+                    .addHeader("Content-Type", "application/json")
+                    .post(okhttp3.RequestBody.create(MediaType.get("application/json; charset=utf-8"),
+                            new JSONObject().fluentPut("token", token).toString()))
+                    .build();
+            Response r = new OkHttpClient().newCall(request).execute();
+            raw = r.body() == null ? "" : r.body().string();
+            log.info("[换取直播信息] http={} 返回={}", r.code(), raw);
+        } catch (IOException e) {
+            log.error("[换取直播信息] 异常 {}", e.getMessage(), e);
+            out.put("err_no", 2);
+            out.put("err_msg", "换取直播信息失败");
+            return out.toJSONString();
+        }
+
+        JSONObject info = null;
+        try {
+            JSONObject root = JSON.parseObject(raw);
+            JSONObject data = root.getJSONObject("data");
+            if (data != null) {
+                info = data.getJSONObject("info") != null ? data.getJSONObject("info") : data;
+            }
+        } catch (Exception ignore) {
+            // 返回格式异常，下面统一报错，原文已记入日志
+        }
+        String roomID = info == null ? null : info.getString("room_id");
+        String anchorOpenID = info == null ? null : info.getString("anchor_open_id");
+        if (!notEmpty(roomID) || !notEmpty(anchorOpenID)) {
+            out.put("err_no", 3);
+            out.put("err_msg", "未取到直播间信息，请查看服务日志 [换取直播信息]");
+            return out.toJSONString();
+        }
+
+        store.open(anchorOpenID);
+        for (String msgType : Arrays.asList("live_like", "live_comment", "live_gift", "live_fansclub", "live_follow")) {
+            if (startLiveDataTask(appID, roomID, msgType)) {
+                log.info("{} 推送开启成功", msgType);
+            } else {
+                log.error("{} 推送开启失败", msgType);
+            }
+        }
+        out.put("err_no", 0);
+        out.put("key", anchorOpenID);
+        return out.toJSONString();
+    }
+
     private static boolean notEmpty(String s) {
         return s != null && !s.isEmpty();
     }
