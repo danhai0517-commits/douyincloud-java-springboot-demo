@@ -188,6 +188,8 @@ public class LivePlayDemoController {
             @RequestHeader("X-Anchor-OpenID") String anchorOpenID,
             @RequestHeader("x-msg-type") String msgType,
             @RequestBody String body) {
+        log.info("[回调] 类型={} 房间={} 原文={}", msgType, anchorOpenID,
+                body != null && body.length() > 1500 ? body.substring(0, 1500) + "...(截断)" : body);
         JSONArray arr = JSON.parseArray(body);
         // 平台可能重复推送，按 msg_id 去重后再放进房间队列，供 /poll 拉取
         for (LiveEventConverter.Item item : LiveEventConverter.convert(msgType, arr)) {
