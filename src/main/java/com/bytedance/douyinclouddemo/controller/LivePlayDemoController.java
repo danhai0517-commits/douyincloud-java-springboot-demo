@@ -37,6 +37,9 @@ public class LivePlayDemoController {
             ? System.getenv("LIVEPLAY_OPENAPI_BASE")
             : "http://webcast-bytedance-com.openapi.dyc.ivolces.com";
 
+    /** 开放平台"自测工具"的模拟房间号（1 开头共 19 位）。仅测试时设置，线上不要设置。 */
+    private static final String MOCK_ROOM = System.getenv("LIVEPLAY_MOCK_ROOM");
+
     @Autowired
     private LiveEventStore store;
 
@@ -164,6 +167,9 @@ public class LivePlayDemoController {
             } else {
                 log.error("{} 推送开启失败", msgType);
             }
+            if (notEmpty(MOCK_ROOM)) {
+                log.info("[模拟房间] {} 开启{}", msgType, startLiveDataTask(appID, MOCK_ROOM, msgType) ? "成功" : "失败");
+            }
         }
         out.put("err_no", 0);
         out.put("key", anchorOpenID);
@@ -263,6 +269,11 @@ public class LivePlayDemoController {
         log.info("[回调] 类型={} 房间={} 原文={}", msgType, anchorOpenID,
                 body != null && body.length() > 1500 ? body.substring(0, 1500) + "...(截断)" : body);
         JSONArray arr = JSON.parseArray(body);
+        // 自测工具的模拟房间带的主播标识和真实房间不同，测试时转给最近开启的房间
+        if (notEmpty(MOCK_ROOM) && !store.has(anchorOpenID) && store.lastOpened() != null) {
+            log.info("[模拟房间] 回调主播标识 {} 未开房，转给 {}", anchorOpenID, store.lastOpened());
+            anchorOpenID = store.lastOpened();
+        }
         // 平台可能重复推送，按 msg_id 去重后再放进房间队列，供 /poll 拉取
         for (LiveEventConverter.Item item : LiveEventConverter.convert(msgType, arr)) {
             String dedupe = item.msgId == null ? null : msgType + ":" + item.msgId;

@@ -25,6 +25,7 @@ public class LiveEventStore {
 
     private final Map<String, Room> rooms = new ConcurrentHashMap<>();
     private final Room debugRoom = new Room();
+    private volatile String lastOpened;
 
     private static class Room {
         private final ArrayDeque<JSONObject> events = new ArrayDeque<>();
@@ -87,7 +88,18 @@ public class LiveEventStore {
     public void open(String key) {
         if (key != null && !key.isEmpty()) {
             rooms.computeIfAbsent(key, k -> new Room());
+            lastOpened = key;
         }
+    }
+
+    public boolean has(String key) {
+        return key != null && rooms.containsKey(key);
+    }
+
+    /** 最近一次开启的房间，用于把开放平台自测工具的模拟房间数据转给它。 */
+    public String lastOpened() {
+        String k = lastOpened;
+        return k != null && rooms.containsKey(k) ? k : null;
     }
 
     public void close(String key) {
