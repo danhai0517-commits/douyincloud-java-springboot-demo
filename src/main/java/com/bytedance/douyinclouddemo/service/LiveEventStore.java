@@ -55,6 +55,12 @@ public class LiveEventStore {
             return true;
         }
 
+        /** 只清事件，保留 seq 和去重记录：新一局不会再收到上一局的内容，平台重复推送的旧消息也不会再进来。 */
+        synchronized void clearEvents() {
+            touched = System.currentTimeMillis();
+            events.clear();
+        }
+
         synchronized JSONObject poll(long after, int limit) {
             touched = System.currentTimeMillis();
             // 游标比服务端序号还大，说明实例重启过，从头开始
@@ -88,6 +94,14 @@ public class LiveEventStore {
     public void open(String key) {
         if (key != null && !key.isEmpty()) {
             rooms.computeIfAbsent(key, k -> new Room());
+            lastOpened = key;
+        }
+    }
+
+    /** 游戏（重新）开始时调用：确保房间存在，并丢掉上一局遗留的事件。 */
+    public void start(String key) {
+        if (key != null && !key.isEmpty()) {
+            rooms.computeIfAbsent(key, k -> new Room()).clearEvents();
             lastOpened = key;
         }
     }

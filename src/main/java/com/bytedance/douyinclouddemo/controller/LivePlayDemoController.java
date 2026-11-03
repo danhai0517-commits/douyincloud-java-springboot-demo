@@ -73,7 +73,7 @@ public class LivePlayDemoController {
         }
         // 游戏拉取消息用的标识：线上是主播 openid，本地调试可用 key 参数
         String key = hasRoom ? anchorOpenID : (notEmpty(debugKey) ? debugKey : LiveEventStore.DEBUG_KEY);
-        store.open(key);
+        store.start(key);
 
         if (hasRoom) {
             // 调用弹幕玩法服务端API，开启直播间推送任务，开启后，开发者服务器会通过/live_data_callback接口 收到直播间玩法指令
@@ -160,7 +160,7 @@ public class LivePlayDemoController {
             return out.toJSONString();
         }
 
-        store.open(anchorOpenID);
+        store.start(anchorOpenID);
         for (String msgType : Arrays.asList("live_like", "live_comment", "live_gift", "live_fansclub", "live_follow")) {
             if (startLiveDataTask(appID, roomID, msgType)) {
                 log.info("{} 推送开启成功", msgType);
